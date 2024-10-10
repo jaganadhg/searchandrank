@@ -5,17 +5,18 @@ import torch.nn as nn
 from transformers import BertModel
 from transformers import BertModel, AdamW
 from torch.utils.data import Dataset, DataLoader
-
+from transormers import AutoTokenizer
+from datasets import load_dataset
 from sklearn.metrics import ndcg_score
 
 
-class LITERanke():
+class LITERanke(nn.Module):
     """
     A roush imliementation of the LITE-Rank model discussed in the paper.
     Efficient Document Ranking with Learnable Late Interactions
     https://arxiv.org/abs/2406.17968
     """
-    def __init__(self, bert_model_name: str, mlp_w1: int, mlp_w2 : int) --> None:
+    def __init__(self, bert_model_name: str, mlp_w1: int, mlp_w2: int) -> None:
         self.bert_model = BertModel.from_pretrained(bert_model_name)
         self.mlp1 = nn.Sequential(
             nn.Linear(200, mlp_w1),  # Assuming document length of 200
@@ -27,9 +28,8 @@ class LITERanke():
             nn.Linear(30, mlp_w2),  # Assuming query length of 30
             nn.ReLU(),
             nn.LayerNorm(mlp_w2),
-            nn.Linear(mlp_w2, 1)
+            nn.Linear(mlp_w2, 1),
         )
-    
 
     def forward(self, query_input_ids, query_attention_mask, doc_input_ids, doc_attention_mask):
         # Obtain query and document embeddings from BERT
@@ -86,8 +86,6 @@ class LITERankDataset(Dataset):
         }
 
 
-
-
 model_name = 'bert-base-uncased'
 mlp1_width = 360
 mlp2_width = 2400
@@ -100,14 +98,37 @@ epochs = 3
 # Load tokenizer
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 
+dataset = load_dataset("coco_marc")
+
+queries = dataset["train"]["query"]
+documents = dataset["train"]["document"]
+labels = dataset["train"]["label"]
+
+# Create the dataset and dataloader
+max_query_len = 30
+max_doc_len = 200
+batch_size = 16
+
+
 # Create datasets and dataloaders
-train_dataset = RankingDataset(queries, documents, labels, tokenizer, max_query_len, max_doc_len)
+train_dataset = LITERankDataset(
+    queries, documents, labels, tokenizer, max_query_len, max_doc_len
+)
 train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
 # Initialize models
-lite_model = SeparableLITE(model_name, mlp1_width, mlp2_width)
-# Load your CE teacher model (implementation not provided here)
-teacher_model = load_teacher_model() 
+lite_model = LITERanke(model_name, mlp1_width, mlp2_width)
+
+
+def load_teacher_model(model_name: str):
+    """
+    Load the teacher model from the Hugging Face model hub
+    """
+    teacher_model = BertModel.from_pretrained(model_name)
+    return teacher_model
+
+
+teacher_model = load_teacher_model()
 
 # Optimizer and loss function
 optimizer = AdamW(lite_model.parameters(), lr=learning_rate)
@@ -133,5 +154,3 @@ for epoch in range(epochs):
         loss = loss_fn(student_scores, teacher_scores)
         loss.backward()
         optimizer.step()
-
-
