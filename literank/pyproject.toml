@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "literank-jagan"
+version = "0.1.0"
+description = "Impliment the LITE re-ranking algorihtm."
+authors = ["Jaganadh Gopinadhan <jaganadhg@gmail.com>"]
+license = "Apache 2.0"
+readme = "README.md"
+packages = [{include = "literank_jagan"}]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+torch = "^2.4.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
