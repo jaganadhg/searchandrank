@@ -92,7 +92,13 @@ class LITERankDataset(Dataset):
                     truncation=True,
                     return_tensors="pt",
                 )
-                processed_data.append((encoded_q, encoded_p))
+                data_local = {
+                    "query": query,
+                    "passage": passage,
+                    "query_enc": encoded_q,
+                    "passage_enc": encoded_p,
+                }
+                processed_data.append(data_local)
 
                 # processed_data.append((query, passage["passage_text"]))
         return processed_data
