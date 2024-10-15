@@ -6,84 +6,102 @@ from transformers import BertModel
 from transformers import BertModel, AdamW
 from torch.utils.data import Dataset, DataLoader
 from transormers import AutoTokenizer
+from transformers import BertTokenizer
 from datasets import load_dataset
 from sklearn.metrics import ndcg_score
 
 
-class LITERanke(nn.Module):
+class LITERank(nn.Module):
     """
     A roush imliementation of the LITE-Rank model discussed in the paper.
     Efficient Document Ranking with Learnable Late Interactions
     https://arxiv.org/abs/2406.17968
     """
-    def __init__(self, bert_model_name: str, mlp_w1: int, mlp_w2: int) -> None:
-        self.bert_model = BertModel.from_pretrained(bert_model_name)
-        self.mlp1 = nn.Sequential(
-            nn.Linear(200, mlp_w1),  # Assuming document length of 200
+    def __init__(self, transf_dim: int, mlp1_dim: int, mlp2_dim: int) -> None:
+        super(LITERank, self).__init__()
+        self.row_mlp = nn.Sequential(
+            nn.Linear(transf_dim, mlp1_dim),
             nn.ReLU(),
-            nn.LayerNorm(mlp_w1),
-            nn.Linear(mlp_w1, 1), 
-        )
-        self.mlp2 = nn.Sequential(
-            nn.Linear(30, mlp_w2),  # Assuming query length of 30
+            nn.LayerNorm(mlp1_dim),
+            nn.Linear(mlp1_dim, transf_dim),
             nn.ReLU(),
-            nn.LayerNorm(mlp_w2),
-            nn.Linear(mlp_w2, 1),
+            nn.LayerNorm(transf_dim),
+        )
+        self.col_mlp = nn.Sequential(
+            nn.Linear(transf_dim, mlp2_dim),
+            nn.ReLU(),
+            nn.LayerNorm(mlp2_dim),
+            nn.Linear(mlp2_dim, transf_dim),
+            nn.ReLU(),
+            nn.LayerNorm(transf_dim),
         )
 
-    def forward(self, query_input_ids, query_attention_mask, doc_input_ids, doc_attention_mask):
-        # Obtain query and document embeddings from BERT
-        query_output = self.bert_model(input_ids=query_input_ids, attention_mask=query_attention_mask)
-        query_embeddings = query_output.last_hidden_state  # Q ∈ R^(P×L1)
-        doc_output = self.bert_model(input_ids=doc_input_ids, attention_mask=doc_attention_mask)
-        doc_embeddings = doc_output.last_hidden_state  # D ∈ R^(P×L2)
+        self.final_projection = nn.Linear(transf_dim, 1)
 
-        # Calculate similarity matrix
-        similarity_matrix = torch.matmul(query_embeddings.transpose(1, 2), doc_embeddings)  # S ∈ R^(L1×L2)
+    def forward(self, query_emb, doc_emb):
+        """
+        query_emb: [batch_size, query_length, embedding_dim]
+        doc_emb: [batch_size, doc_length, embedding_dim]
+        Einsum Notation:
+            "bqd,brd->bqr"
+            b: Batch size
+            q: Query length
+            r: Document length
+            d: Embedding dimension
+        """
+        sim_mat = torch.einsum("bqd,brd->bqr", query_emb, doc_emb)
 
-        # Apply separable LITE scorer
-        row_updated = self.mlp1(similarity_matrix.transpose(1, 2)).squeeze(-1)  # Apply MLP1 row-wise
-        score = self.mlp2(row_updated.transpose(1, 2)).squeeze(-1)  # Apply MLP2 column-wise 
+        # Apply MLPs (note the order: rows then columns)
+        interm_mat = self.row_mlp(sim_mat)
+        final_matrix = self.col_mlp(interm_mat.transpose(1, 2)).transpose(1, 2)
 
-        return score
+        # Project to a scalar score
+        scores = self.final_projection(final_matrix).squeeze(-1)
+
+        return scores
 
 
 class LITERankDataset(Dataset):
-    def __init__(self, queries, documents, labels, tokenizer, max_query_len, max_doc_len):
-        self.queries = queries
-        self.documents = documents
-        self.labels = labels
-        self.tokenizer = tokenizer
-        self.max_query_len = max_query_len
-        self.max_doc_len = max_doc_len
 
-    def __len__(self):
-        return len(self.queries)
+    def __init__(
+        self,
+        dataset_name="microsoft/ms_marco",
+        tokenizer_name="bert-base-uncased",
+        split="train",
+    ):
+        self.tokenizer = BertTokenizer.from_pretrained(tokenizer_name)
+        self.dataset = load_dataset(dataset_name, split=split)
+        self.processed_data = self._process_data()
+
+    def _process_data(self):
+        processed_data = []
+        for record in self.dataset:
+            query = record["query"]
+            encoded_q = self.tokenizer(
+                query,
+                padding="max_length",
+                truncation=True,
+                return_tensors="pt",
+            )
+            # passages = record["passages"]
+            passages = record["passages"]["passage_text"]
+            for passage in passages:
+                encoded_p = self.tokenizer(
+                    passage,
+                    padding="max_length",
+                    truncation=True,
+                    return_tensors="pt",
+                )
+                processed_data.append((encoded_q, encoded_p))
+
+                # processed_data.append((query, passage["passage_text"]))
+        return processed_data
 
     def __getitem__(self, idx):
-        query = self.queries[idx]
-        document = self.documents[idx]
-        label = self.labels[idx]
+        return self.processed_data[idx]
 
-        query_inputs = self.tokenizer(query, 
-                                      add_special_tokens=True, 
-                                      max_length=self.max_query_len, 
-                                      padding='max_length', 
-                                      truncation=True, 
-                                      return_tensors='pt')
-        doc_inputs = self.tokenizer(document, 
-                                    add_special_tokens=True, 
-                                    max_length=self.max_doc_len, 
-                                    padding='max_length', 
-                                    truncation=True, 
-                                    return_tensors='pt')
-        return {
-            'query_input_ids': query_inputs['input_ids'].squeeze(),
-            'query_attention_mask': query_inputs['attention_mask'].squeeze(),
-            'doc_input_ids': doc_inputs['input_ids'].squeeze(),
-            'doc_attention_mask': doc_inputs['attention_mask'].squeeze(),
-            'label': torch.tensor(label, dtype=torch.float)
-        }
+    def __len__(self):
+        return len(self.processed_data)
 
 
 model_name = 'bert-base-uncased'
