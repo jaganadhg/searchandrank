@@ -7,18 +7,53 @@
 ## Goal
 
 A **faithful, architecturally-exact** reference implementation of LITE (Learnable late
-InTEraction) for document ranking. Correctness and clarity over leaderboard numbers.
-It must train and validate end-to-end on **small MS MARCO subsets** on a local 6 GB
-GTX 1060, and scale unchanged (via config) to larger GPUs to approach the paper's
-results. This is **not** a full paper reproduction (which needs cloud-scale compute:
-BERT, batch 128, ~1.5M steps) and **not** a throwaway prototype.
+InTEraction) for document ranking, run on the **Kaggle free GPU** tier. The target is a
+**working qualitative reproduction**: a correct, tested model that trains end-to-end on a
+**MS MARCO subset**, **beats a plain dual-encoder / MaxSim baseline** on a dev subset, and
+reproduces the paper's *qualitative* claims — (1) the learnable late interaction helps and
+(2) the Small-LITE projection trades storage for quality. Local 6 GB GTX 1060 is used only
+for dev/CPU tests; Kaggle T4/P100 (16 GB) is the training target. The same configs scale
+to larger GPUs.
+
+This is **not** a full numeric reproduction. Full scale (BERT, batch 128, ~1.5M steps ≈
+192M triplets ≈ ~1,000 T4-hours) is ~35× Kaggle's weekly quota and explicitly out of
+reach. The honest deliverable is methodological correctness + the right ablations, with
+MS MARCO dev **MRR@10 plausibly in the ~0.30–0.36 range** (estimate, not a contract),
+below the paper's 0.393.
 
 ## Non-goals
 
 - First-stage ANN retrieval / ColBERT-PLAID-style token index (re-ranking only).
 - A non-separable LITE scorer variant (the scorer is made pluggable, but only the
   Separable variant is built now — YAGNI).
-- Matching the paper's exact MRR@10 numbers locally.
+- Matching the paper's exact MRR@10 (0.393) numbers — out of reach on free Kaggle.
+
+## Target platform: Kaggle free GPU
+
+- **Hardware:** NVIDIA T4 ×2 or P100, **16 GB** VRAM; ~4 vCPU, ~30 GB RAM, ~70 GB disk.
+- **Budget:** ~30 GPU-hours/week; **max ~12 h per session** (kernel dies at the limit).
+- **Implications baked into the design:**
+  - **Training must be checkpoint/resume:** save optimizer+model+step to
+    `/kaggle/working` each N steps; resume by re-attaching the previous run as a Kaggle
+    Dataset. A single experiment may span multiple sessions.
+  - **Internet toggle** required for HF model/dataset pulls, or attach data as a Kaggle
+    Dataset; output is capped (~20 GB) so checkpoints stay small (scorer is tiny;
+    DistilBERT ~250 MB).
+  - **Subset regime:** train on 100k–500k triplets (~15–40k steps), batch 16–32 with AMP
+    + gradient accumulation; evaluate on a subsampled dev set (~1–2k queries, BM25 top-k).
+  - A **Kaggle notebook** is the run entry point; it installs the package and calls the
+    CLI.
+
+## Achievable outcomes on Kaggle (the actual deliverables)
+
+1. Full correctness/test suite passes (CPU).
+2. A distilled LITE model trained on a MS MARCO subset; loss ↓, MRR ↑.
+3. Eval on a subsampled MS MARCO dev set (MRR@10, nDCG@10).
+4. Headline ablations (all fit the budget):
+   - **Separable LITE vs. plain DE/MaxSim baseline** — does the learnable scorer help?
+   - **Small LITE projection** `d' ∈ {128, 256, 768}` — dev quality vs. **measured cache
+     size on disk** (direct demonstration of the ~0.25× storage claim).
+   - Activation (ReLU vs. sigmoid), query/doc length sensitivity.
 
 ## Hardware / environment constraints
 
@@ -77,6 +112,13 @@ reference implementation fixes both.
    (MRR@10, nDCG@10). No first-stage retrieval.
 8. **Training-time encoding:** on-the-fly (encoder is trainable). The disk cache is
    used for the rerank/eval path.
+9. **Baseline scorer:** a plain dual-encoder **MaxSim** scorer (ColBERT-style, no learned
+   MLPs) is a first-class config alongside `LITEScorer`, sharing the same encoder/training
+   loop — required for the headline "does LITE help?" ablation.
+10. **Resumable training:** checkpoint model+optimizer+step to disk every N steps; `train`
+    can resume from a checkpoint. Mandatory for Kaggle's 12 h session limit.
+11. **Kaggle notebook** under `notebooks/` is the run entry point (install package +
+    call CLI), with Internet/data-attach instructions in the spec/README.
 
 ## Architecture
 
@@ -114,6 +156,13 @@ Input: query embeddings `Q [B, L₁, d']`, doc embeddings `D [B, L₂, d']`.
 - *Unit answers:* maps a pair of token-embedding sets to a scalar relevance score;
   depends only on shape config `(L₁, L₂, d', m₁, m₂, σ)`.
 
+### Component: `MaxSimScorer` (`model.py`)
+
+- ColBERT-style baseline: `S = Q·Dᵀ` then `score = Σ_i max_j S_ij` (sum of row maxima
+  over valid doc tokens; masked). No learned parameters beyond the encoder.
+- Same input/output contract as `LITEScorer` so it drops into the same training/eval loop.
+- Used as the reference baseline for the "does the learnable scorer help?" ablation.
+
 ### Component: `Teacher` (`teacher.py`)
 
 - Wraps `cross-encoder/ms-marco-MiniLM-L-6-v2`.
@@ -135,10 +184,14 @@ Input: query embeddings `Q [B, L₁, d']`, doc embeddings `D [B, L₂, d']`.
 
 ### Component: training (`train.py`)
 
-- AdamW (default lr 2.8e-5), optional `accelerate`.
-- Per step: encode `(q, d⁺, d⁻)` on the fly → scorer → `s⁺, s⁻` → loss vs cached
-  teacher scores → backward → step.
-- Local defaults: small subset, batch 8–16, few epochs; checkpoint to disk.
+- AdamW (default lr 2.8e-5), **AMP** (mixed precision) on, optional `accelerate`,
+  gradient accumulation.
+- Per step: encode `(q, d⁺, d⁻)` on the fly → scorer (`lite` or `maxsim`) → `s⁺, s⁻` →
+  loss vs cached teacher scores → backward → step.
+- **Checkpoint/resume:** save `{model, optimizer, scaler, step, config}` to disk every N
+  steps; `--resume <ckpt>` restores and continues — required for Kaggle 12 h sessions.
+- Kaggle defaults: subset of 100k–500k triplets, batch 16–32, AMP, periodic checkpoints
+  to `/kaggle/working`.
 
 ### Component: offline encode (`encode_cache.py`)
 
@@ -158,9 +211,18 @@ Input: query embeddings `Q [B, L₁, d']`, doc embeddings `D [B, L₂, d']`.
 
 ### Component: CLI (`cli.py`)
 
-- Subcommands: `train | encode | rerank | eval`, each taking a config.
+- Subcommands: `train | encode | rerank | eval`, each taking a config; `train` accepts
+  `--resume` and `--scorer {lite,maxsim}`.
 - `config.py` holds `ModelConfig`, `DataConfig`, `TrainConfig` dataclasses with all
-  paper hyperparameters (`L₁=30, L₂=200, m₁=360, m₂=2400, d=768, d'=768`) as defaults.
+  paper hyperparameters (`L₁=30, L₂=200, m₁=360, m₂=2400, d=768, d'=768`) as defaults,
+  plus Kaggle-oriented run configs (subset size, batch, accumulation, checkpoint interval).
+
+### Component: Kaggle notebook (`notebooks/literank_kaggle.ipynb`)
+
+- Run entry point: enable Internet, `pip install -e .` (or install deps), download/attach
+  MS MARCO subset + teacher, then call the CLI for `train → encode → rerank → eval`.
+- Documents the checkpoint→Kaggle-Dataset→resume loop for multi-session training, and how
+  to run the ablations.
 
 ## Data flow
 
@@ -189,6 +251,9 @@ Unit tests drive the build, written before implementation:
 - **Universal-approximation sanity:** on toy `S` matrices, the scorer can be trained
   to fit a known target (e.g., MaxSim) to low error — a lightweight echo of the
   paper's theorem.
+- **`MaxSimScorer`:** matches a hand-computed sum-of-row-maxima on a toy `S`; respects
+  the doc mask; same I/O contract as `LITEScorer`.
+- **Checkpoint/resume:** save then resume reproduces identical model state and step.
 - **`losses.py`:** Margin-MSE and KL match hand-computed values; `λ=0` disables KL.
 - **`encoder.py`:** fixed output shapes; padded positions are exactly zero; projection
   changes `d→d'`.
@@ -200,11 +265,13 @@ Unit tests drive the build, written before implementation:
 
 - **Activation (σ) and KL/Margin-MSE weighting** are inferred from the paper, not read
   verbatim — marked for verification against the authors' reference code if it appears.
-- **6 GB VRAM:** fine-tuning DistilBERT with 3 encodes/triplet is tight; mitigate with
-  small batch, gradient accumulation, and the `freeze_encoder` smoke-test path. Numbers
-  will not match the paper locally — that is expected and in-scope.
-- **Negative sampling** locally is simplified vs. the paper's hard negatives;
-  documented and config-extensible.
+- **Kaggle session/quota limits:** 12 h sessions and ~30 GPU-h/week force subset-scale
+  training and the checkpoint/resume loop. A full run spans multiple sessions; budget
+  experiments accordingly. Numbers will be below the paper — expected and in-scope.
+- **VRAM:** 16 GB on Kaggle comfortably fits DistilBERT fine-tuning at batch 16–32 with
+  AMP; the local 6 GB card is for CPU/dev tests and tiny smoke runs only.
+- **Negative sampling** is simplified vs. the paper's hard negatives; documented and
+  config-extensible.
 
 ## Out of scope (future work)
 
