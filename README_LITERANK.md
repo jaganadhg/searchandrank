@@ -112,9 +112,26 @@ multiple sessions:
    training.
 2. In the next session, attach that Dataset as input data (mounted read-only under
    `/kaggle/input/<dataset-name>/`).
-3. Copy the latest checkpoint to a writable path and resume:
+3. Copy the latest checkpoint to a writable path and resume. Because a session can be
+   interrupted at any step, the checkpoint to resume from is whichever `ckpt_step<N>.pt` in the
+   attached dataset has the **highest `<N>`** — this is *not* a fixed value like
+   `ckpt_step20000.pt`; `<N>` varies with wherever the previous session stopped. Select it by
+   step number, e.g. with the same `latest_checkpoint` helper used in the training notebook:
+   ```python
+   import glob, os, re
+
+   def latest_checkpoint(ckpt_dir):
+       paths = glob.glob(os.path.join(ckpt_dir, "ckpt_step*.pt"))
+       if not paths:
+           raise FileNotFoundError(f"no checkpoints in {ckpt_dir}")
+       return max(paths, key=lambda p: int(re.search(r"ckpt_step(\d+)\.pt", os.path.basename(p)).group(1)))
+
+   latest_ckpt = latest_checkpoint("/kaggle/input/<dataset-name>")
+   ```
+   or, from the CLI, list the dataset folder to find the highest `<N>` and copy that file:
    ```bash
-   cp /kaggle/input/<dataset-name>/ckpt_step20000.pt /kaggle/working/resume_ckpt.pt
+   ls /kaggle/input/<dataset-name>/   # find the ckpt_step<N>.pt with the highest <N>
+   cp /kaggle/input/<dataset-name>/ckpt_step<N>.pt /kaggle/working/resume_ckpt.pt
    python -m literank.cli train --scorer lite --proj-dim 768 --subset-size 100000 \
        --max-steps 40000 --checkpoint-dir /kaggle/working/ckpt_lite \
        --resume /kaggle/working/resume_ckpt.pt --device cuda
