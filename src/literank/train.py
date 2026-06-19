@@ -53,7 +53,7 @@ def train(model_cfg, train_cfg, triplets, model=None, resume=None, device="cpu")
     while step < train_cfg.max_steps:
         for batch in loader:
             step += 1
-            do_step = (step % train_cfg.grad_accum == 0)
+            do_step = (step % train_cfg.grad_accum == 0) or step >= train_cfg.max_steps
             train_step(model, batch, optimizer, scaler, train_cfg.kl_weight,
                        train_cfg.grad_accum, do_step, device)
             if step % train_cfg.checkpoint_every == 0 or step >= train_cfg.max_steps:

@@ -60,3 +60,17 @@ def test_checkpoint_and_resume(tmp_path):
     train(ModelConfig(), tcfg2, _triplets(), model=ToyRanker(),
           resume=str(ckpt), device="cpu")
     assert (tmp_path / "ckpt_step10.pt").exists()
+
+
+def test_grad_accum_non_multiple_still_updates(tmp_path):
+    # max_steps=10 is NOT a multiple of grad_accum=3
+    tcfg = TrainConfig(batch_size=4, max_steps=10, grad_accum=3, amp=False, seed=0,
+                       checkpoint_every=1000, checkpoint_dir=str(tmp_path))
+    model = ToyRanker()
+    w_initial = model.w.clone().item()
+
+    train(ModelConfig(), tcfg, _triplets(), model=model, device="cpu")
+    w_final = model.w.item()
+
+    # final partial accumulation window (steps 10) should be flushed
+    assert w_final != w_initial, "Optimizer should have stepped on final partial batch"
