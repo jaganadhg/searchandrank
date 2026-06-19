@@ -35,3 +35,28 @@ class LITEScorer(nn.Module):
         s = self.col_mlp(s.transpose(1, 2)).transpose(1, 2)    # MLP over L1
         b = s.shape[0]
         return self.final(s.reshape(b, -1)).squeeze(-1)        # [B]
+
+
+class MaxSimScorer(nn.Module):
+    """ColBERT-style baseline: sum_i max_j (q_i . d_j), masked."""
+
+    def __init__(self, cfg=None):
+        super().__init__()
+
+    def forward(self, q, d, q_mask=None, d_mask=None):
+        s = torch.einsum("bid,bjd->bij", q, d)             # [B, L1, L2]
+        if d_mask is not None:
+            neg = torch.finfo(s.dtype).min
+            s = s.masked_fill(d_mask.unsqueeze(1) == 0, neg)
+        maxsim = s.max(dim=2).values                        # [B, L1]
+        if q_mask is not None:
+            maxsim = maxsim * q_mask
+        return maxsim.sum(dim=1)                             # [B]
+
+
+def build_scorer(cfg):
+    if cfg.scorer == "lite":
+        return LITEScorer(cfg)
+    if cfg.scorer == "maxsim":
+        return MaxSimScorer(cfg)
+    raise ValueError(f"unknown scorer: {cfg.scorer}")
