@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from literank.encoder import DualEncoder
 
 _ACT = {"relu": nn.ReLU, "sigmoid": nn.Sigmoid, "gelu": nn.GELU}
 
@@ -60,3 +61,16 @@ def build_scorer(cfg):
     if cfg.scorer == "maxsim":
         return MaxSimScorer(cfg)
     raise ValueError(f"unknown scorer: {cfg.scorer}")
+
+
+class Ranker(nn.Module):
+    def __init__(self, cfg, encoder=None):
+        super().__init__()
+        self.cfg = cfg
+        self.encoder = encoder or DualEncoder(cfg)
+        self.scorer = build_scorer(cfg)
+
+    def score(self, queries, docs):
+        q, qm = self.encoder.encode(queries, self.cfg.query_len)
+        d, dm = self.encoder.encode(docs, self.cfg.doc_len)
+        return self.scorer(q, d, qm, dm)
