@@ -10,6 +10,8 @@ class _SeqMLP(nn.Module):
 
     def __init__(self, dim, hidden, activation="relu"):
         super().__init__()
+        if activation not in _ACT:
+            raise ValueError(f"unknown activation: {activation}")
         act = _ACT[activation]
         self.fc1 = nn.Linear(dim, hidden)
         self.ln1 = nn.LayerNorm(hidden)

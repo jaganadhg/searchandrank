@@ -41,6 +41,8 @@ def cache_teacher_scores(triplets, teacher, path, batch_size=32):
         with open(path) as f:
             return json.load(f)
     out = add_teacher_scores(triplets, teacher, batch_size=batch_size)
-    with open(path, "w") as f:
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
         json.dump(out, f)
+    os.replace(tmp, path)
     return out
