@@ -18,6 +18,9 @@ def test_kl_is_zero_when_distributions_match():
 
 
 def test_distill_loss_kl_weight_zero_equals_margin_mse():
-    a = torch.randn(5); b = torch.randn(5); c = torch.randn(5); d = torch.randn(5)
+    a = torch.randn(5)
+    b = torch.randn(5)
+    c = torch.randn(5)
+    d = torch.randn(5)
     assert torch.allclose(distill_loss(a, b, c, d, kl_weight=0.0),
                           margin_mse(a, b, c, d))
