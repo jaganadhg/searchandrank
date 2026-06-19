@@ -24,6 +24,25 @@ def collate_triplets(batch):
     }
 
 
+def _record_to_triplet(record, rng):
+    """Build one (query, pos, neg) triplet dict from a MS MARCO record.
+    Returns None if the record has no positive or no negative passage.
+    Teacher scores are placeholders (0.0), filled in later."""
+    passages = record["passages"]["passage_text"]
+    selected = record["passages"]["is_selected"]
+    pos_idx = [i for i, s in enumerate(selected) if s == 1]
+    neg_idx = [i for i, s in enumerate(selected) if s == 0]
+    if not pos_idx or not neg_idx:
+        return None
+    return {
+        "query": record["query"],
+        "pos": passages[rng.choice(pos_idx)],
+        "neg": passages[rng.choice(neg_idx)],
+        "t_pos": 0.0,
+        "t_neg": 0.0,
+    }
+
+
 def build_msmarco_triplets(data_cfg, seed=42):
     """Build (query, pos, neg) triplets from MS MARCO; teacher scores set later."""
     from datasets import load_dataset
@@ -32,14 +51,7 @@ def build_msmarco_triplets(data_cfg, seed=42):
     ds = ds.select(range(min(data_cfg.subset_size, len(ds))))
     triplets = []
     for rec in ds:
-        passages = rec["passages"]["passage_text"]
-        selected = rec["passages"]["is_selected"]
-        pos_idx = [i for i, s in enumerate(selected) if s == 1]
-        neg_idx = [i for i, s in enumerate(selected) if s == 0]
-        if not pos_idx or not neg_idx:
-            continue
-        p = passages[rng.choice(pos_idx)]
-        n = passages[rng.choice(neg_idx)]
-        triplets.append({"query": rec["query"], "pos": p, "neg": n,
-                         "t_pos": 0.0, "t_neg": 0.0})
+        t = _record_to_triplet(rec, rng)
+        if t is not None:
+            triplets.append(t)
     return triplets

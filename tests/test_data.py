@@ -1,5 +1,6 @@
+import random
 import torch
-from literank.data import TripletDataset, collate_triplets
+from literank.data import TripletDataset, collate_triplets, _record_to_triplet
 
 
 def _triplets():
@@ -21,3 +22,69 @@ def test_collate_shapes_and_types():
     assert batch["neg"] == ["n1", "n2"]
     assert torch.allclose(batch["t_pos"], torch.tensor([2.0, 1.5]))
     assert batch["t_neg"].dtype == torch.float32
+
+
+def test_record_to_triplet_valid():
+    """Test that a record with one positive and one negative produces a triplet."""
+    record = {
+        "query": "test query",
+        "passages": {
+            "passage_text": ["pos_passage", "neg_passage"],
+            "is_selected": [1, 0],
+        },
+    }
+    rng = random.Random(42)
+    triplet = _record_to_triplet(record, rng)
+    assert triplet is not None
+    assert triplet["query"] == "test query"
+    assert triplet["pos"] == "pos_passage"
+    assert triplet["neg"] == "neg_passage"
+    assert triplet["t_pos"] == 0.0
+    assert triplet["t_neg"] == 0.0
+
+
+def test_record_to_triplet_no_positive():
+    """Test that a record with no positive (all is_selected==0) returns None."""
+    record = {
+        "query": "test query",
+        "passages": {
+            "passage_text": ["neg1", "neg2"],
+            "is_selected": [0, 0],
+        },
+    }
+    rng = random.Random(42)
+    triplet = _record_to_triplet(record, rng)
+    assert triplet is None
+
+
+def test_record_to_triplet_no_negative():
+    """Test that a record with no negative (all is_selected==1) returns None."""
+    record = {
+        "query": "test query",
+        "passages": {
+            "passage_text": ["pos1", "pos2"],
+            "is_selected": [1, 1],
+        },
+    }
+    rng = random.Random(42)
+    triplet = _record_to_triplet(record, rng)
+    assert triplet is None
+
+
+def test_record_to_triplet_determinism():
+    """Test that same record and seed produce identical pos/neg."""
+    record = {
+        "query": "test query",
+        "passages": {
+            "passage_text": ["pos1", "pos2", "neg1", "neg2"],
+            "is_selected": [1, 1, 0, 0],
+        },
+    }
+    rng1 = random.Random(0)
+    triplet1 = _record_to_triplet(record, rng1)
+
+    rng2 = random.Random(0)
+    triplet2 = _record_to_triplet(record, rng2)
+
+    assert triplet1["pos"] == triplet2["pos"]
+    assert triplet1["neg"] == triplet2["neg"]
