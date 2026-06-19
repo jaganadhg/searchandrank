@@ -9,8 +9,10 @@ class DualEncoder(nn.Module):
         self.cfg = cfg
         if tokenizer is None or encoder is None:
             from transformers import AutoModel, AutoTokenizer
-            tokenizer = tokenizer or AutoTokenizer.from_pretrained(cfg.encoder_name)
-            encoder = encoder or AutoModel.from_pretrained(cfg.encoder_name)
+            if tokenizer is None:
+                tokenizer = AutoTokenizer.from_pretrained(cfg.encoder_name)
+            if encoder is None:
+                encoder = AutoModel.from_pretrained(cfg.encoder_name)
         self.tokenizer = tokenizer
         self.encoder = encoder
         if cfg.freeze_encoder:
