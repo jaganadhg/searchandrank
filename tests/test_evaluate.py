@@ -1,5 +1,19 @@
 import math
-from literank.evaluate import mrr_at_k, ndcg_at_k
+import torch
+from literank.evaluate import mrr_at_k, ndcg_at_k, evaluate_ranker_mrr
+
+
+class _FakeModel:
+    training = False
+
+    def eval(self):
+        ...
+
+    def train(self):
+        ...
+
+    def score(self, queries, docs):
+        return torch.tensor([float(len(d)) for d in docs])
 
 
 def test_mrr_first_relevant_at_rank_two():
@@ -21,6 +35,25 @@ def test_ndcg_perfect_ranking_is_one():
 def test_ndcg_relevant_at_rank_two():
     # DCG = 1/log2(3); IDCG = 1/log2(2)=1 -> nDCG = 1/log2(3)
     assert abs(ndcg_at_k([[0, 1]], k=10) - 1 / math.log2(3)) < 1e-9
+
+
+def test_evaluate_ranker_mrr_relevant_doc_ranked_first():
+    eval_set = [{"query": "q", "docs": ["x", "longer"], "labels": [0, 1]}]
+    assert evaluate_ranker_mrr(_FakeModel(), eval_set, k=10) == 1.0
+
+
+def test_evaluate_ranker_mrr_relevant_doc_ranked_second():
+    # relevant doc is "x" (shorter) -> scores lower than "longer" -> ranked 2nd -> MRR 0.5
+    eval_set = [{"query": "q", "docs": ["longer", "x"], "labels": [0, 1]}]
+    assert evaluate_ranker_mrr(_FakeModel(), eval_set, k=10) == 0.5
+
+
+def test_evaluate_ranker_mrr_averages_across_examples():
+    eval_set = [
+        {"query": "q", "docs": ["x", "longer"], "labels": [0, 1]},
+        {"query": "q", "docs": ["longer", "x"], "labels": [0, 1]},
+    ]
+    assert evaluate_ranker_mrr(_FakeModel(), eval_set, k=10) == 0.75
 
 
 def test_ndcg_multi_query_average_and_k_truncation():

@@ -43,6 +43,20 @@ def _record_to_triplet(record, rng):
     }
 
 
+def build_eval_set(triplets):
+    """Group triplets by query into eval examples {query, docs, labels},
+    label 1 for positive passages, 0 for negatives (deduplicated; positive wins)."""
+    by_query = {}
+    for t in triplets:
+        docs = by_query.setdefault(t["query"], {})
+        docs[t["pos"]] = max(docs.get(t["pos"], 0), 1)
+        docs[t["neg"]] = max(docs.get(t["neg"], 0), 0)
+    return [
+        {"query": q, "docs": list(d.keys()), "labels": list(d.values())}
+        for q, d in by_query.items()
+    ]
+
+
 def build_msmarco_triplets(data_cfg, seed=42):
     """Build (query, pos, neg) triplets from MS MARCO; teacher scores set later."""
     from datasets import load_dataset

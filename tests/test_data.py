@@ -1,6 +1,6 @@
 import random
 import torch
-from literank.data import TripletDataset, collate_triplets, _record_to_triplet
+from literank.data import TripletDataset, collate_triplets, _record_to_triplet, build_eval_set
 
 
 def _triplets():
@@ -69,6 +69,33 @@ def test_record_to_triplet_no_negative():
     rng = random.Random(42)
     triplet = _record_to_triplet(record, rng)
     assert triplet is None
+
+
+def test_build_eval_set_groups_by_query():
+    triplets = [
+        {"query": "q1", "pos": "p1", "neg": "n1", "t_pos": 2.0, "t_neg": 0.0},
+        {"query": "q2", "pos": "p2", "neg": "n2", "t_pos": 1.5, "t_neg": -1.0},
+    ]
+    eval_set = build_eval_set(triplets)
+    assert len(eval_set) == 2
+    q1 = next(e for e in eval_set if e["query"] == "q1")
+    assert q1["docs"] == ["p1", "n1"]
+    assert q1["labels"] == [1, 0]
+
+
+def test_build_eval_set_positive_wins_tie():
+    # "n1" appears as a negative in the first triplet and as a positive in the
+    # second triplet for the same query "q1" -> label must resolve to 1.
+    triplets = [
+        {"query": "q1", "pos": "p1", "neg": "n1", "t_pos": 2.0, "t_neg": 0.0},
+        {"query": "q1", "pos": "n1", "neg": "p1", "t_pos": 1.0, "t_neg": 0.0},
+    ]
+    eval_set = build_eval_set(triplets)
+    assert len(eval_set) == 1
+    q1 = eval_set[0]
+    labels_by_doc = dict(zip(q1["docs"], q1["labels"]))
+    assert labels_by_doc["n1"] == 1
+    assert labels_by_doc["p1"] == 1
 
 
 def test_record_to_triplet_determinism():

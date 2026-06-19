@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 from literank.config import ModelConfig, TrainConfig
@@ -60,6 +61,23 @@ def test_checkpoint_and_resume(tmp_path):
     train(ModelConfig(), tcfg2, _triplets(), model=ToyRanker(),
           resume=str(ckpt), device="cpu")
     assert (tmp_path / "ckpt_step10.pt").exists()
+
+
+def test_early_stopping_triggers_before_max_steps(tmp_path):
+    tcfg = TrainConfig(batch_size=4, max_steps=200, amp=False, seed=0,
+                       checkpoint_every=1000, checkpoint_dir=str(tmp_path),
+                       eval_every=5, patience=2, val_fraction=0.2)
+    train(ModelConfig(), tcfg, _triplets(), model=ToyRanker(), device="cpu")
+    assert os.path.exists(tmp_path / "best.pt")
+    assert not os.path.exists(tmp_path / "ckpt_step200.pt")
+
+
+def test_eval_disabled_by_default_runs_to_max_steps(tmp_path):
+    tcfg = TrainConfig(batch_size=4, max_steps=10, amp=False, seed=0,
+                       checkpoint_every=1000, checkpoint_dir=str(tmp_path))
+    train(ModelConfig(), tcfg, _triplets(), model=ToyRanker(), device="cpu")
+    assert os.path.exists(tmp_path / "ckpt_step10.pt")
+    assert not os.path.exists(tmp_path / "best.pt")
 
 
 def test_grad_accum_non_multiple_still_updates(tmp_path):

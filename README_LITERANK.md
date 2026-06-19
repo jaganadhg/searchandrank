@@ -73,6 +73,8 @@ python -m literank.cli train \
     --max-steps 20000 \
     --subset-size 100000 \        # MS MARCO training rows to sample
     --checkpoint-dir checkpoints \
+    --eval-every 0 \              # >0 enables periodic dev-MRR@10 eval + early stopping
+    --patience 3 \                # consecutive evals without improvement before stopping
     --resume <path/to/ckpt.pt> \  # optional: resume from a saved checkpoint
     --device cuda
 

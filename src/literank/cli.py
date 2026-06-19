@@ -12,6 +12,8 @@ def build_parser():
     t.add_argument("--max-steps", type=int, default=TrainConfig().max_steps)
     t.add_argument("--subset-size", type=int, default=DataConfig().subset_size)
     t.add_argument("--checkpoint-dir", default=TrainConfig().checkpoint_dir)
+    t.add_argument("--eval-every", type=int, default=TrainConfig().eval_every)
+    t.add_argument("--patience", type=int, default=TrainConfig().patience)
     t.add_argument("--resume", default=None)
     t.add_argument("--device", default="cuda")
 
@@ -40,7 +42,8 @@ def main(argv=None):
         from literank.teacher import CrossEncoderTeacher, cache_teacher_scores
         from literank.train import train
         mcfg = ModelConfig(scorer=args.scorer, proj_dim=args.proj_dim)
-        tcfg = TrainConfig(max_steps=args.max_steps, checkpoint_dir=args.checkpoint_dir)
+        tcfg = TrainConfig(max_steps=args.max_steps, checkpoint_dir=args.checkpoint_dir,
+                          eval_every=args.eval_every, patience=args.patience)
         dcfg = DataConfig(subset_size=args.subset_size)
         triplets = build_msmarco_triplets(dcfg)
         teacher = CrossEncoderTeacher(dcfg.teacher_name, device=args.device,

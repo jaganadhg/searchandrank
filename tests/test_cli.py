@@ -12,6 +12,13 @@ def test_train_subcommand_parses_flags():
     assert args.resume == "ck.pt"
 
 
+def test_train_subcommand_parses_early_stopping_flags():
+    p = build_parser()
+    args = p.parse_args(["train", "--eval-every", "500", "--patience", "4"])
+    assert args.eval_every == 500
+    assert args.patience == 4
+
+
 def test_subcommands_exist():
     p = build_parser()
     for cmd in ["train", "encode", "rerank", "eval"]:

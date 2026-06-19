@@ -21,3 +21,13 @@ def test_train_and_data_defaults():
     d = DataConfig()
     assert d.teacher_name == "cross-encoder/ms-marco-MiniLM-L-6-v2"
     assert d.subset_size == 100_000
+
+
+def test_train_config_early_stopping_defaults():
+    t = TrainConfig()
+    assert t.eval_every == 0
+    assert t.patience == 3
+    assert t.val_fraction == 0.1
+    assert t.min_delta == 0.0
+    assert t.eval_k == 10
+    assert t.best_ckpt_name == "best.pt"

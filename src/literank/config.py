@@ -27,6 +27,12 @@ class TrainConfig:
     seed: int = 42
     checkpoint_every: int = 1000
     checkpoint_dir: str = "checkpoints"
+    eval_every: int = 0          # >0 enables periodic dev-MRR eval + early stopping
+    patience: int = 3            # consecutive evals without improvement before stopping
+    val_fraction: float = 0.1    # held-out fraction of triplets used for eval
+    min_delta: float = 0.0       # minimum MRR gain to count as improvement
+    eval_k: int = 10             # k for MRR@k
+    best_ckpt_name: str = "best.pt"
 
 
 @dataclass
