@@ -19,6 +19,13 @@ def test_train_subcommand_parses_early_stopping_flags():
     assert args.patience == 4
 
 
+def test_train_subcommand_parses_batch_and_grad_accum():
+    p = build_parser()
+    args = p.parse_args(["train", "--batch-size", "16", "--grad-accum", "8"])
+    assert args.batch_size == 16
+    assert args.grad_accum == 8
+
+
 def test_subcommands_exist():
     p = build_parser()
     for cmd in ["train", "encode", "rerank", "eval"]:

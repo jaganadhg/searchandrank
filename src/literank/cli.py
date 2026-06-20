@@ -10,6 +10,9 @@ def build_parser():
     t.add_argument("--scorer", choices=["lite", "maxsim"], default="lite")
     t.add_argument("--proj-dim", type=int, default=ModelConfig().proj_dim)
     t.add_argument("--max-steps", type=int, default=TrainConfig().max_steps)
+    t.add_argument("--batch-size", type=int, default=TrainConfig().batch_size)
+    t.add_argument("--grad-accum", type=int, default=TrainConfig().grad_accum,
+                   help="micro-batches per optimizer step; effective batch = batch-size * grad-accum")
     t.add_argument("--subset-size", type=int, default=DataConfig().subset_size)
     t.add_argument("--checkpoint-dir", default=TrainConfig().checkpoint_dir)
     t.add_argument("--eval-every", type=int, default=TrainConfig().eval_every)
@@ -43,6 +46,7 @@ def main(argv=None):
         from literank.train import train
         mcfg = ModelConfig(scorer=args.scorer, proj_dim=args.proj_dim)
         tcfg = TrainConfig(max_steps=args.max_steps, checkpoint_dir=args.checkpoint_dir,
+                          batch_size=args.batch_size, grad_accum=args.grad_accum,
                           eval_every=args.eval_every, patience=args.patience)
         dcfg = DataConfig(subset_size=args.subset_size)
         triplets = build_msmarco_triplets(dcfg)

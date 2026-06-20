@@ -71,6 +71,8 @@ python -m literank.cli train \
     --scorer {lite,maxsim} \      # default: lite
     --proj-dim 768 \              # projection dim d' (< embed_dim=768 => Small-LITE)
     --max-steps 20000 \
+    --batch-size 16 \             # micro-batch size
+    --grad-accum 1 \              # micro-batches per optimizer step (effective batch = batch-size * grad-accum)
     --subset-size 100000 \        # MS MARCO training rows to sample
     --checkpoint-dir checkpoints \
     --eval-every 0 \              # >0 enables periodic dev-MRR@10 eval + early stopping
@@ -85,6 +87,31 @@ python -m literank.cli train \
 #   literank.rerank.rerank(scorer, query_emb, query_mask, doc_embs, doc_masks)
 #   literank.evaluate.mrr_at_k(...) / literank.evaluate.ndcg_at_k(...)
 ```
+
+### Paper-faithful training
+
+To match the paper's *recipe* (not just the subset defaults), use the full Separable-LITE
+config, the paper's **effective batch of 128**, the paper's fixed-budget schedule, and **no
+early stopping** (the paper trains to a fixed step count, ~1.5M steps, rather than stopping
+on a dev metric):
+
+```bash
+python -m literank.cli train \
+    --scorer lite --proj-dim 768 \   # full Separable LITE (not Small-LITE)
+    --batch-size 16 --grad-accum 8 \ # effective batch 128 (16 x 8) to fit a 16 GB GPU
+    --subset-size 1000000 \          # as much MS MARCO as you can afford
+    --max-steps 1500000 \            # paper-scale fixed budget (no --eval-every)
+    --checkpoint-dir ckpt_paper --device cuda
+# lr defaults to 2.8e-5 (the paper's peak LR); encoder defaults to distilbert-base-uncased
+# (a faithful 6-layer/768 proxy for the paper's 6-layer BERT).
+```
+
+**Honest caveat:** this is the faithful *configuration*, but the full ~1.5M-step / batch-128
+run is **cloud-GPU scale** — it will not complete within free Kaggle's session/quota limits.
+On free Kaggle, run this same config with a smaller `--max-steps`/`--subset-size`; you get
+the qualitative reproduction (LITE > MaxSim, Small-LITE storage tradeoff), **not** the
+paper's 0.393 MRR@10. Do **not** add `--eval-every` for a paper-faithful run — early stopping
+is a compute guardrail we added, not part of the paper's method.
 
 ## Running on Kaggle
 
