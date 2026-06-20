@@ -47,11 +47,13 @@ def train(model_cfg, train_cfg, triplets, model=None, resume=None, device="cpu")
 
     os.makedirs(train_cfg.checkpoint_dir, exist_ok=True)
 
-    early = train_cfg.eval_every and train_cfg.eval_every > 0
+    early = bool(train_cfg.eval_every and train_cfg.eval_every > 0)
     if early:
-        n_val = max(1, int(len(triplets) * train_cfg.val_fraction))
+        # Clamp so the held-out val split and the training split stay disjoint and
+        # both non-empty (avoids a silent train==val leak for large val_fraction).
+        n_val = max(1, min(int(len(triplets) * train_cfg.val_fraction), len(triplets) - 1))
         val_set = build_eval_set(triplets[:n_val])
-        train_triplets = triplets[n_val:] or triplets
+        train_triplets = triplets[n_val:]
     else:
         val_set = None
         train_triplets = triplets

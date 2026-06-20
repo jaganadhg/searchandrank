@@ -80,6 +80,17 @@ def test_eval_disabled_by_default_runs_to_max_steps(tmp_path):
     assert not os.path.exists(tmp_path / "best.pt")
 
 
+def test_large_val_fraction_keeps_training_nonempty(tmp_path):
+    # val_fraction=0.9 must not empty the training split (an empty DataLoader would
+    # hang the step loop forever). patience high so it runs to max_steps.
+    tcfg = TrainConfig(batch_size=4, max_steps=20, amp=False, seed=0,
+                       checkpoint_every=1000, checkpoint_dir=str(tmp_path),
+                       eval_every=5, patience=10, val_fraction=0.9)
+    train(ModelConfig(), tcfg, _triplets(), model=ToyRanker(), device="cpu")
+    # reaching the max-step checkpoint proves training actually ran (loader non-empty)
+    assert os.path.exists(tmp_path / "ckpt_step20.pt")
+
+
 def test_grad_accum_non_multiple_still_updates(tmp_path):
     # max_steps=10 is NOT a multiple of grad_accum=3
     tcfg = TrainConfig(batch_size=4, max_steps=10, grad_accum=3, amp=False, seed=0,
