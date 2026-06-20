@@ -21,9 +21,11 @@ def test_train_subcommand_parses_early_stopping_flags():
 
 def test_train_subcommand_parses_batch_and_grad_accum():
     p = build_parser()
-    args = p.parse_args(["train", "--batch-size", "16", "--grad-accum", "8"])
+    args = p.parse_args(["train", "--batch-size", "16", "--grad-accum", "8",
+                         "--log-every", "25"])
     assert args.batch_size == 16
     assert args.grad_accum == 8
+    assert args.log_every == 25
 
 
 def test_subcommands_exist():

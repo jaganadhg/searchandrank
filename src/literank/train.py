@@ -1,3 +1,4 @@
+import logging
 import os
 import torch
 from torch.utils.data import DataLoader
@@ -5,6 +6,8 @@ from literank.data import TripletDataset, collate_triplets, build_eval_set
 from literank.losses import distill_loss
 from literank.checkpoint import save_checkpoint, load_checkpoint
 from literank.evaluate import evaluate_ranker_mrr
+
+logger = logging.getLogger("literank.train")
 
 
 def train_step(model, batch, optimizer, scaler, kl_weight, grad_accum, do_step, device):
@@ -67,25 +70,50 @@ def train(model_cfg, train_cfg, triplets, model=None, resume=None, device="cpu")
     no_improve = 0
     stop = False
     best_path = os.path.join(train_cfg.checkpoint_dir, train_cfg.best_ckpt_name)
+    loss_window = []
+
+    logger.info(
+        "start training: %d train / %d val triplets, batch %d x grad_accum %d "
+        "(effective %d), device %s, max_steps %d, early_stopping %s",
+        len(train_triplets), len(val_set) if val_set else 0,
+        train_cfg.batch_size, train_cfg.grad_accum,
+        train_cfg.batch_size * train_cfg.grad_accum, device,
+        train_cfg.max_steps, "on" if early else "off",
+    )
     while step < train_cfg.max_steps and not stop:
         for batch in loader:
             step += 1
             do_step = (step % train_cfg.grad_accum == 0) or step >= train_cfg.max_steps
-            train_step(model, batch, optimizer, scaler, train_cfg.kl_weight,
-                       train_cfg.grad_accum, do_step, device)
+            loss_window.append(train_step(model, batch, optimizer, scaler,
+                                          train_cfg.kl_weight, train_cfg.grad_accum,
+                                          do_step, device))
+            if step % train_cfg.log_every == 0:
+                logger.info("step %d/%d | loss %.4f", step, train_cfg.max_steps,
+                            sum(loss_window) / len(loss_window))
+                loss_window = []
             if early and step % train_cfg.eval_every == 0:
                 mrr = evaluate_ranker_mrr(model, val_set, k=train_cfg.eval_k, device=device)
                 if mrr > best_mrr + train_cfg.min_delta:
                     best_mrr = mrr
                     no_improve = 0
                     save_checkpoint(best_path, model, optimizer, scaler, step, vars(model_cfg))
+                    logger.info("step %d | dev MRR@%d %.4f (new best, saved %s)",
+                                step, train_cfg.eval_k, mrr, best_path)
                 else:
                     no_improve += 1
+                    logger.info("step %d | dev MRR@%d %.4f (best %.4f, no_improve %d/%d)",
+                                step, train_cfg.eval_k, mrr, best_mrr,
+                                no_improve, train_cfg.patience)
                     if no_improve >= train_cfg.patience:
                         stop = True
+                        logger.info("early stopping at step %d (dev MRR@%d plateaued, best %.4f)",
+                                    step, train_cfg.eval_k, best_mrr)
             if step % train_cfg.checkpoint_every == 0 or step >= train_cfg.max_steps:
-                save_checkpoint(os.path.join(train_cfg.checkpoint_dir, f"ckpt_step{step}.pt"),
-                                model, optimizer, scaler, step, vars(model_cfg))
+                ckpt = os.path.join(train_cfg.checkpoint_dir, f"ckpt_step{step}.pt")
+                save_checkpoint(ckpt, model, optimizer, scaler, step, vars(model_cfg))
+                logger.info("step %d | saved checkpoint %s", step, ckpt)
             if step >= train_cfg.max_steps or stop:
                 break
+    logger.info("finished at step %d (%s)", step,
+                "early-stopped" if stop else "reached max_steps")
     return model

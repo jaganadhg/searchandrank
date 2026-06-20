@@ -80,6 +80,18 @@ def test_eval_disabled_by_default_runs_to_max_steps(tmp_path):
     assert not os.path.exists(tmp_path / "best.pt")
 
 
+def test_progress_logging_emitted(tmp_path, caplog):
+    import logging
+    tcfg = TrainConfig(batch_size=4, max_steps=10, amp=False, seed=0,
+                       checkpoint_every=1000, checkpoint_dir=str(tmp_path), log_every=2)
+    with caplog.at_level(logging.INFO, logger="literank.train"):
+        train(ModelConfig(), tcfg, _triplets(), model=ToyRanker(), device="cpu")
+    messages = [r.getMessage() for r in caplog.records]
+    assert any(m.startswith("start training") for m in messages)
+    assert any("step 2/10 | loss" in m for m in messages)
+    assert any(m.startswith("finished at step 10") for m in messages)
+
+
 def test_large_val_fraction_keeps_training_nonempty(tmp_path):
     # val_fraction=0.9 must not empty the training split (an empty DataLoader would
     # hang the step loop forever). patience high so it runs to max_steps.

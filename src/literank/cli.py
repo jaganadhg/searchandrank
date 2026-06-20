@@ -1,4 +1,5 @@
 import argparse
+import logging
 from literank.config import ModelConfig, TrainConfig, DataConfig
 
 
@@ -17,6 +18,7 @@ def build_parser():
     t.add_argument("--checkpoint-dir", default=TrainConfig().checkpoint_dir)
     t.add_argument("--eval-every", type=int, default=TrainConfig().eval_every)
     t.add_argument("--patience", type=int, default=TrainConfig().patience)
+    t.add_argument("--log-every", type=int, default=TrainConfig().log_every)
     t.add_argument("--resume", default=None)
     t.add_argument("--device", default="cuda")
 
@@ -38,6 +40,8 @@ def build_parser():
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
+    logging.basicConfig(level=logging.INFO,
+                        format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     # Dispatch is wired to module entrypoints; the Kaggle notebook drives the
     # full train->encode->rerank->eval flow. Heavy paths require a GPU + data.
     if args.command == "train":
@@ -47,7 +51,8 @@ def main(argv=None):
         mcfg = ModelConfig(scorer=args.scorer, proj_dim=args.proj_dim)
         tcfg = TrainConfig(max_steps=args.max_steps, checkpoint_dir=args.checkpoint_dir,
                           batch_size=args.batch_size, grad_accum=args.grad_accum,
-                          eval_every=args.eval_every, patience=args.patience)
+                          eval_every=args.eval_every, patience=args.patience,
+                          log_every=args.log_every)
         dcfg = DataConfig(subset_size=args.subset_size)
         triplets = build_msmarco_triplets(dcfg)
         teacher = CrossEncoderTeacher(dcfg.teacher_name, device=args.device,

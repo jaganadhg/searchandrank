@@ -27,6 +27,7 @@ class TrainConfig:
     seed: int = 42
     checkpoint_every: int = 1000
     checkpoint_dir: str = "checkpoints"
+    log_every: int = 50          # steps between progress (step/loss) log lines
     eval_every: int = 0          # >0 enables periodic dev-MRR eval + early stopping
     patience: int = 3            # consecutive evals without improvement before stopping
     val_fraction: float = 0.1    # held-out fraction of triplets used for eval

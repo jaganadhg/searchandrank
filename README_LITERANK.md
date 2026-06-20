@@ -75,6 +75,7 @@ python -m literank.cli train \
     --grad-accum 1 \              # micro-batches per optimizer step (effective batch = batch-size * grad-accum)
     --subset-size 100000 \        # MS MARCO training rows to sample
     --checkpoint-dir checkpoints \
+    --log-every 50 \              # steps between progress (step/loss) log lines
     --eval-every 0 \              # >0 enables periodic dev-MRR@10 eval + early stopping
     --patience 3 \                # consecutive evals without improvement before stopping
     --resume <path/to/ckpt.pt> \  # optional: resume from a saved checkpoint
