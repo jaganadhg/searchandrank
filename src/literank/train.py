@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import DataLoader
 from literank.data import TripletDataset, collate_triplets, build_eval_set
 from literank.losses import distill_loss
-from literank.checkpoint import save_checkpoint, load_checkpoint
+from literank.checkpoint import save_checkpoint, load_checkpoint, prune_checkpoints
 from literank.evaluate import evaluate_ranker_mrr
 
 logger = logging.getLogger("literank.train")
@@ -111,6 +111,7 @@ def train(model_cfg, train_cfg, triplets, model=None, resume=None, device="cpu")
             if step % train_cfg.checkpoint_every == 0 or step >= train_cfg.max_steps:
                 ckpt = os.path.join(train_cfg.checkpoint_dir, f"ckpt_step{step}.pt")
                 save_checkpoint(ckpt, model, optimizer, scaler, step, vars(model_cfg))
+                prune_checkpoints(train_cfg.checkpoint_dir, train_cfg.keep_last)
                 logger.info("step %d | saved checkpoint %s", step, ckpt)
             if step >= train_cfg.max_steps or stop:
                 break

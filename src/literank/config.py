@@ -27,6 +27,7 @@ class TrainConfig:
     seed: int = 42
     checkpoint_every: int = 1000
     checkpoint_dir: str = "checkpoints"
+    keep_last: int = 3           # max ckpt_step*.pt files to retain (older pruned); 0 = keep all
     log_every: int = 50          # steps between progress (step/loss) log lines
     eval_every: int = 0          # >0 enables periodic dev-MRR eval + early stopping
     patience: int = 3            # consecutive evals without improvement before stopping

@@ -16,6 +16,8 @@ def build_parser():
                    help="micro-batches per optimizer step; effective batch = batch-size * grad-accum")
     t.add_argument("--subset-size", type=int, default=DataConfig().subset_size)
     t.add_argument("--checkpoint-dir", default=TrainConfig().checkpoint_dir)
+    t.add_argument("--keep-last", type=int, default=TrainConfig().keep_last,
+                   help="max ckpt_step*.pt files to keep (older pruned); 0 = keep all")
     t.add_argument("--eval-every", type=int, default=TrainConfig().eval_every)
     t.add_argument("--patience", type=int, default=TrainConfig().patience)
     t.add_argument("--log-every", type=int, default=TrainConfig().log_every)
@@ -51,6 +53,7 @@ def main(argv=None):
         mcfg = ModelConfig(scorer=args.scorer, proj_dim=args.proj_dim)
         tcfg = TrainConfig(max_steps=args.max_steps, checkpoint_dir=args.checkpoint_dir,
                           batch_size=args.batch_size, grad_accum=args.grad_accum,
+                          keep_last=args.keep_last,
                           eval_every=args.eval_every, patience=args.patience,
                           log_every=args.log_every)
         dcfg = DataConfig(subset_size=args.subset_size)
