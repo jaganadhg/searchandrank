@@ -98,5 +98,13 @@ print(scores)
 }
 ```
 
+## Source code
+
+Full implementation, tests, Kaggle training notebook, and detailed results:
+**https://github.com/jaganadhg/searchandrank** — branch **`feat/paper-faithful`**.
+
+This HF repo already bundles the `literank/` package, so `python load_example.py` works
+straight after cloning. To train/evaluate from scratch, use the GitHub branch above.
+
 Independent reproduction; credit for the LITE method and the MaxSim/ColBERT formulation
 belongs to their original authors.

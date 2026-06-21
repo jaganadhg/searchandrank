@@ -120,6 +120,13 @@ print(scores)   # higher = more relevant
 }
 ```
 
-Reproduction code, tests, training notebook, and full results: see the project repository.
+## Source code
+
+Full implementation, tests, Kaggle training notebook, and detailed results:
+**https://github.com/jaganadhg/searchandrank** — branch **`feat/paper-faithful`**.
+
+This HF repo already bundles the `literank/` package, so `python load_example.py` works
+straight after cloning. To train/evaluate from scratch, use the GitHub branch above.
+
 This model card documents an independent reproduction; credit for the LITE method belongs
 to the original authors.
