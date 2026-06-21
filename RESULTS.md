@@ -72,6 +72,11 @@ trades storage for quality**. Next step for rigor: evaluate on **TREC DL 2019/20
 (public dense judgments) and the full dev set with BM25 top-1000 candidates before making
 any absolute-number claim.
 
+## Published models
+
+- **LITE** — https://huggingface.co/jaganadhg/literank-msmarco-distilbert
+- **MaxSim baseline** — https://huggingface.co/jaganadhg/maxsim-msmarco-distilbert
+
 ## Reproduce
 
 ```bash

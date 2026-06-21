@@ -16,6 +16,17 @@ deliverable of this project is: the LITE scorer trains and ranks sensibly, the a
 the way the paper predicts (LITE beats/matches MaxSim, smaller `proj_dim` shrinks the cache),
 not a SOTA number.
 
+## Pretrained models (HuggingFace)
+
+The trained checkpoints from this branch are published as self-contained model repos
+(slim weights + bundled `literank/` package + load example + model card):
+
+- **LITE re-ranker** — https://huggingface.co/jaganadhg/literank-msmarco-distilbert (MRR@10 0.704)
+- **MaxSim baseline** — https://huggingface.co/jaganadhg/maxsim-msmarco-distilbert (MRR@10 0.612)
+
+(Numbers are on a ~10-candidate dev pool; see [RESULTS.md](RESULTS.md) for the honest caveat
+that these are *relative* comparisons, not paper-comparable absolutes.)
+
 ## Package layout
 
 ```
