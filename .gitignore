@@ -163,3 +163,7 @@ cython_debug/
 
 # local kaggle upload artifact
 literank.zip
+
+# downloaded kaggle kernel output (multi-GB checkpoints)
+kaggle_res_v3/
+literank_out/
