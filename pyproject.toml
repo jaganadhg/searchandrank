@@ -5,6 +5,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "accelerate>=1.0",
     "datasets>=2.20",
+    "kaggle>=2.2.2",
     "numpy>=1.26",
     "scikit-learn>=1.4",
     "torch>=2.5.1",

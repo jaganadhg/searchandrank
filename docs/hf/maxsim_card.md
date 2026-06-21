@@ -1,0 +1,102 @@
+---
+license: apache-2.0
+language:
+  - en
+library_name: pytorch
+pipeline_tag: text-ranking
+base_model: distilbert-base-uncased
+datasets:
+  - microsoft/ms_marco
+tags:
+  - information-retrieval
+  - passage-ranking
+  - re-ranking
+  - late-interaction
+  - colbert
+  - maxsim
+  - knowledge-distillation
+  - msmarco
+  - baseline
+metrics:
+  - mrr
+  - ndcg
+---
+
+# MaxSim Re-ranker (MS MARCO, DistilBERT) — baseline for LITE reproduction
+
+A ColBERT-style **MaxSim** late-interaction re-ranker, trained as the **baseline** for an
+independent reproduction of **LITE** ([arXiv:2406.17968](https://arxiv.org/abs/2406.17968)).
+MaxSim scores a query–document pair as `Σ_i max_j (q_i · d_j)` over token embeddings — the
+**fixed** operator that LITE replaces with a learnable scorer.
+
+> This model exists to quantify what the learnable interaction adds. The learnable
+> counterpart is **[jaganadhg/literank-msmarco-distilbert](https://huggingface.co/jaganadhg/literank-msmarco-distilbert)**.
+
+## Model
+
+- **Encoder:** shared `distilbert-base-uncased` dual-encoder → token embeddings.
+- **Scorer (MaxSim):** `S = Q·Dᵀ`, then sum over query tokens of the max over (valid) doc
+  tokens. **No learned parameters beyond the encoder.**
+
+## Training
+
+Identical recipe to the LITE model, for a fair comparison:
+
+- **Objective:** Margin-MSE distillation from `cross-encoder/ms-marco-MiniLM-L-6-v2`.
+- **Data:** MS MARCO v2.1 `train`, ~61k (query, positive, negative) triplets.
+- **Schedule:** batch 64, 20,000 steps, AdamW lr 2.8e-5, AMP, no early stopping.
+- **Compute:** Kaggle free T4×2 (trained in parallel with the LITE model), ~3.7 h.
+
+## Results (held-out MS MARCO `dev`/validation)
+
+| Model | MRR@10 | nDCG@10 |
+|---|---|---|
+| LITE (learnable) | 0.704 | 0.775 |
+| **MaxSim (this model)** | **0.612** | **0.705** |
+
+The learnable LITE scorer beats this MaxSim baseline by **+0.09 MRR@10 (+15%)**, stable
+across 500/1000/2000-query slices — the comparison that motivates the LITE method.
+
+## How to use
+
+```bash
+git clone https://huggingface.co/jaganadhg/maxsim-msmarco-distilbert
+cd maxsim-msmarco-distilbert && pip install torch transformers
+python load_example.py
+```
+
+```python
+import torch
+from literank.config import ModelConfig
+from literank.model import Ranker
+from literank.checkpoint import load_checkpoint
+
+ckpt = torch.load("model.pt", map_location="cpu", weights_only=False)
+ranker = Ranker(ModelConfig(**ckpt["config"]))   # config has scorer="maxsim"
+load_checkpoint("model.pt", ranker)
+ranker.eval()
+scores = ranker.score(["query"] * 2, ["a relevant passage", "an irrelevant one"])
+print(scores)
+```
+
+## Limitations & honest caveats
+
+- **Absolute scores are NOT comparable to the paper's 0.393** — eval reranks each query's
+  ~10 own passages, not BM25 top-1000. Only the relative LITE-vs-MaxSim gap is claimed.
+- Subset / fixed-budget training, not paper scale.
+- This is a **baseline**, intentionally less expressive than LITE (no learnable output scale),
+  which is why its distillation loss floors higher (~3.6 vs LITE's ~0.74).
+
+## Citation
+
+```bibtex
+@article{ji2024lite,
+  title  = {Efficient Document Ranking with Learnable Late Interactions},
+  author = {Ji, Ziwei and others},
+  journal= {arXiv preprint arXiv:2406.17968},
+  year   = {2024}
+}
+```
+
+Independent reproduction; credit for the LITE method and the MaxSim/ColBERT formulation
+belongs to their original authors.
