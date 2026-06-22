@@ -43,23 +43,26 @@ query–document token-similarity matrix.
 
 - **Objective:** Margin-MSE knowledge distillation from the cross-encoder teacher
   `cross-encoder/ms-marco-MiniLM-L-6-v2`.
-- **Data:** MS MARCO v2.1 `train`, ~61k (query, positive, negative) triplets.
-- **Schedule:** batch 64, 20,000 steps, AdamW lr 2.8e-5, mixed precision, no early stopping.
-- **Compute:** Kaggle free T4×2, ~3.7 h.
+- **Data:** MS MARCO v2.1 `train`, ~300k (query, positive, negative) triplets (subset of 500k rows).
+- **Schedule:** batch 64, AdamW lr 2.8e-5, mixed precision, early stopping on held-out dev MRR.
+  This checkpoint is the `best.pt`, reached around step 44k.
+- **Compute:** Kaggle free T4×2, multi-session with checkpoint/resume.
 
-## Results (held-out MS MARCO `dev`/validation)
+## Results (held-out MS MARCO `dev`/validation, 2000 queries)
 
 Reranking each query's candidate passages (same candidates for both models):
 
 | Model | MRR@10 | nDCG@10 |
 |---|---|---|
-| **LITE (this model)** | **0.704** | **0.775** |
-| MaxSim baseline | 0.612 | 0.705 |
+| **LITE (this model)** | **0.724** | **0.791** |
+| MaxSim baseline | 0.664 | 0.745 |
 
-LITE beats the MaxSim baseline by **+0.09 MRR@10 (+15%)**, a margin that is stable across
-500/1000/2000-query evaluation slices — reproducing the paper's central claim that the
-learnable interaction outperforms fixed MaxSim. A companion **Small-LITE** projection
-(d′ 768→128) shrinks the cached document embeddings **~5.9×** (36.9 MB → 6.2 MB).
+LITE beats the MaxSim baseline by **+0.06 MRR@10 (+9%)**, reproducing the paper's central
+claim that the learnable interaction outperforms fixed MaxSim. (An earlier smaller-data run
+showed a wider +15% gap; training both models on ~5x more data lifted the baseline and
+narrowed the margin, so the size of LITE's advantage is data- and budget-dependent.) A
+companion **Small-LITE** projection (d′ 768→128) shrinks the cached document embeddings
+**~5.9×** (36.9 MB → 6.2 MB).
 
 ## Intended use
 

@@ -43,19 +43,21 @@ MaxSim scores a query–document pair as `Σ_i max_j (q_i · d_j)` over token em
 Identical recipe to the LITE model, for a fair comparison:
 
 - **Objective:** Margin-MSE distillation from `cross-encoder/ms-marco-MiniLM-L-6-v2`.
-- **Data:** MS MARCO v2.1 `train`, ~61k (query, positive, negative) triplets.
-- **Schedule:** batch 64, 20,000 steps, AdamW lr 2.8e-5, AMP, no early stopping.
-- **Compute:** Kaggle free T4×2 (trained in parallel with the LITE model), ~3.7 h.
+- **Data:** MS MARCO v2.1 `train`, ~300k (query, positive, negative) triplets (subset of 500k rows).
+- **Schedule:** batch 64, AdamW lr 2.8e-5, AMP, early stopping on held-out dev MRR.
+  This checkpoint is the `best.pt`; it plateaued and stopped around step 14k.
+- **Compute:** Kaggle free T4×2 (trained in parallel with the LITE model).
 
-## Results (held-out MS MARCO `dev`/validation)
+## Results (held-out MS MARCO `dev`/validation, 2000 queries)
 
 | Model | MRR@10 | nDCG@10 |
 |---|---|---|
-| LITE (learnable) | 0.704 | 0.775 |
-| **MaxSim (this model)** | **0.612** | **0.705** |
+| LITE (learnable) | 0.724 | 0.791 |
+| **MaxSim (this model)** | **0.664** | **0.745** |
 
-The learnable LITE scorer beats this MaxSim baseline by **+0.09 MRR@10 (+15%)**, stable
-across 500/1000/2000-query slices — the comparison that motivates the LITE method.
+The learnable LITE scorer beats this MaxSim baseline by **+0.06 MRR@10 (+9%)**. (A smaller-data
+run showed a wider +15% gap; with ~5x more data this baseline improved more, narrowing the
+margin — a reminder that a reported advantage depends on how well-trained the baseline is.)
 
 ## How to use
 
