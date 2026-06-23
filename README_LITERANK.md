@@ -200,6 +200,26 @@ The notebook and config surface three ablations called out in the paper:
    (default), `"sigmoid"`, or `"gelu"`) used inside the LITE scorer's row/column MLPs
    (`literank.model._SeqMLP`). Re-run training with `ModelConfig(activation=...)` to compare.
 
+## Paper-protocol eval: BM25 top-1000
+
+The default eval (the notebook eval cell / `scripts/eval_local.py`) reranks each query's
+~10 own candidate passages. That metric **saturates around MRR@10 ~0.72** and cannot
+distinguish stronger checkpoints (see [RESULTS.md](RESULTS.md), Finding 3). To evaluate on
+the paper's scale, rerank the **BM25 top-1000** on MS MARCO passage dev against the official
+qrels:
+
+```bash
+uv sync --extra bm25        # installs pyserini (needs a JDK); on Kaggle: pip install pyserini
+uv run python scripts/eval_bm25_top1000.py \
+    --ckpt kaggle_res_v4/ckpt_lite_big/best.pt --num-queries 500
+```
+
+- Pyserini's prebuilt `msmarco-v1-passage` index (~2–3 GB) downloads on first run (Internet required).
+- **Needs a GPU** — it encodes up to `num_queries × 1000` passages. Start with `--num-queries 500`
+  (~1 h on a T4); use `-1` for the full ~6,980-query dev set (multi-hour).
+- Reports MRR@10 / nDCG@10 vs qrels — on the same scale as the paper's 0.393, with enough
+  headroom to actually separate the 100k / 500k / full LITE checkpoints.
+
 ## Known limitations
 
 - Numbers from local or Kaggle runs are **expected to fall short of the paper's 0.393 MRR@10**
