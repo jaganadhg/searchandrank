@@ -13,6 +13,13 @@ dependencies = [
     "transformers>=4.44",
 ]
 
+[project.optional-dependencies]
+# BM25 top-1000 reranking eval (scripts/eval_bm25_top1000.py). Heavy + needs Java;
+# install only when running that eval:  uv sync --extra bm25   (or pip install pyserini)
+bm25 = [
+    "pyserini>=0.22",
+]
+
 [dependency-groups]
 dev = [
     "pytest>=8.0",
