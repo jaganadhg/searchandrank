@@ -39,28 +39,36 @@ Training loss corroborates the mechanism: LITE fits the teacher to ~0.74 vs. Max
 
 ## Follow-up runs: scaling data and steps
 
-The table above is the **initial run** (subset of 100k rows, ~61k triplets, 20k steps). Two
-follow-up runs probed whether scaling helps, both evaluated on the same 2000-query dev slice:
+The table above is the **initial run** (subset of 100k rows, ~61k triplets, 20k steps).
+Follow-up runs probed whether scaling helps, all evaluated on the same 2000-query dev slice:
 
 | Run | Data (rows / triplets) | LITE steps | LITE MRR@10 | MaxSim MRR@10 | LITE − MaxSim |
 |---|---|---|---|---|---|
 | Initial | 100k / ~61k | 20k | 0.7043 | 0.6123 | +0.092 (+15%) |
 | More data | 500k / ~300k | ~45k (best.pt) | **0.7242** | **0.6643** | +0.060 (+9%) |
 | More steps | 500k / ~300k | 50k (best.pt) | 0.7175 | 0.6643 | +0.053 (+8%) |
+| Full data | full split | 36k (best.pt, killed @90%) | 0.7203 | 0.6643† | +0.056† |
 
-Two findings:
+† MaxSim was not retrained on the full split, so this "gap" mixes data scales — indicative only.
+
+Three findings:
 
 1. **More data lifted both models, and lifted the baseline more, so the gap narrowed from
    +15% to +9%.** Part of LITE's initial edge came from the MaxSim baseline being
    data-starved; a better-trained baseline closes some of it. LITE still wins clearly, but
    the size of its advantage is data- and budget-dependent.
 2. **Training LITE further (45k → 50k steps) did not help** (0.7242 → 0.7175, within noise).
-   At roughly 17 epochs over the same 300k triplets the model had reached the useful ceiling
-   for this data budget; the extra steps bought nothing measurable. The lever is more *data*,
-   not more *steps*.
+   At ~17 epochs over the same 300k triplets the model had reached its useful ceiling for that
+   data budget; the extra steps bought nothing measurable.
+3. **Scaling data past ~500k did not help either** (LITE 0.7043 → 0.7242 → 0.7203 across
+   100k / 500k / full). The most likely cause is the **evaluation, not the model**: this eval
+   reranks each query's ~10 own candidate passages with ~1 relevant, so MRR@10 **saturates
+   around 0.72** — once the relevant passage sits near the top, a stronger model cannot move
+   the number. Distinguishing further gains would require the harder **BM25 top-1000
+   reranking** protocol (and BEIR zero-shot) that the paper uses.
 
 The **published HuggingFace models are the best checkpoints from the "more data" run**
-(LITE 0.724, MaxSim 0.664).
+(LITE 0.724, MaxSim 0.664); the larger-data and longer runs did not beat them on this eval.
 
 ## Storage ablation (Small-LITE lever)
 
