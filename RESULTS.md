@@ -37,6 +37,31 @@ learned; LITE learned more.)
 Training loss corroborates the mechanism: LITE fits the teacher to ~0.74 vs. MaxSim's
 ~3.6 floor, because MaxSim lacks a learnable output scale to match the teacher's range.
 
+## Follow-up runs: scaling data and steps
+
+The table above is the **initial run** (subset of 100k rows, ~61k triplets, 20k steps). Two
+follow-up runs probed whether scaling helps, both evaluated on the same 2000-query dev slice:
+
+| Run | Data (rows / triplets) | LITE steps | LITE MRR@10 | MaxSim MRR@10 | LITE − MaxSim |
+|---|---|---|---|---|---|
+| Initial | 100k / ~61k | 20k | 0.7043 | 0.6123 | +0.092 (+15%) |
+| More data | 500k / ~300k | ~45k (best.pt) | **0.7242** | **0.6643** | +0.060 (+9%) |
+| More steps | 500k / ~300k | 50k (best.pt) | 0.7175 | 0.6643 | +0.053 (+8%) |
+
+Two findings:
+
+1. **More data lifted both models, and lifted the baseline more, so the gap narrowed from
+   +15% to +9%.** Part of LITE's initial edge came from the MaxSim baseline being
+   data-starved; a better-trained baseline closes some of it. LITE still wins clearly, but
+   the size of its advantage is data- and budget-dependent.
+2. **Training LITE further (45k → 50k steps) did not help** (0.7242 → 0.7175, within noise).
+   At roughly 17 epochs over the same 300k triplets the model had reached the useful ceiling
+   for this data budget; the extra steps bought nothing measurable. The lever is more *data*,
+   not more *steps*.
+
+The **published HuggingFace models are the best checkpoints from the "more data" run**
+(LITE 0.724, MaxSim 0.664).
+
 ## Storage ablation (Small-LITE lever)
 
 Projecting token embeddings d′ 768→128 shrinks the cached document embeddings:
